@@ -80,7 +80,7 @@ func (t *T) Get(key uint64) (interface{}, bool) {
 	return v, true
 }
 
-func (t *T) Add(key uint64, val interface{}) {
+func (t *T) Set(key uint64, val interface{}) {
 
 	newitem := slruItem{0, key, val}
 
