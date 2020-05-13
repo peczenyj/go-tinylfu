@@ -6,7 +6,6 @@ package tinylfu
 
 import (
 	"container/list"
-	"github.com/dgryski/go-metro"
 )
 
 type T struct {
@@ -16,7 +15,7 @@ type T struct {
 	samples int
 	lru     *lruCache
 	slru    *slruCache
-	data    map[string]*list.Element
+	data    map[uint64]*list.Element
 }
 
 func New(size int, samples int) *T {
@@ -29,7 +28,7 @@ func New(size int, samples int) *T {
 	}
 	slruSize := int(float64(size) * ((100.0 - lruPct) / 100.0))
 	if slruSize < 1 {
-		slruSize  = 1
+		slruSize = 1
 
 	}
 	slru20 := int(0.2 * float64(slruSize))
@@ -37,7 +36,7 @@ func New(size int, samples int) *T {
 		slru20 = 1
 	}
 
-	data := make(map[string]*list.Element, size)
+	data := make(map[uint64]*list.Element, size)
 
 	return &T{
 		c:       newCM4(size),
@@ -52,7 +51,7 @@ func New(size int, samples int) *T {
 	}
 }
 
-func (t *T) Get(key string) (interface{}, bool) {
+func (t *T) Get(key uint64) (interface{}, bool) {
 
 	t.w++
 	if t.w == t.samples {
@@ -63,14 +62,13 @@ func (t *T) Get(key string) (interface{}, bool) {
 
 	val, ok := t.data[key]
 	if !ok {
-		keyh := metro.Hash64Str(key, 0)
-		t.c.add(keyh)
+		t.c.add(key)
 		return nil, false
 	}
 
 	item := val.Value.(*slruItem)
 
-	t.c.add(item.keyh)
+	t.c.add(item.key)
 
 	v := item.value
 	if item.listid == 0 {
@@ -82,9 +80,9 @@ func (t *T) Get(key string) (interface{}, bool) {
 	return v, true
 }
 
-func (t *T) Add(key string, val interface{}) {
+func (t *T) Add(key uint64, val interface{}) {
 
-	newitem := slruItem{0, key, val, metro.Hash64Str(key, 0)}
+	newitem := slruItem{0, key, val}
 
 	oitem, evicted := t.lru.add(newitem)
 	if !evicted {
@@ -98,12 +96,12 @@ func (t *T) Add(key string, val interface{}) {
 		return
 	}
 
-	if !t.bouncer.allow(oitem.keyh) {
+	if !t.bouncer.allow(oitem.key) {
 		return
 	}
 
-	vcount := t.c.estimate(victim.keyh)
-	ocount := t.c.estimate(oitem.keyh)
+	vcount := t.c.estimate(victim.key)
+	ocount := t.c.estimate(oitem.key)
 
 	if ocount < vcount {
 		return

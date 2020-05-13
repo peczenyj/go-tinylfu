@@ -4,12 +4,12 @@ import "container/list"
 
 // Cache is an LRU cache.  It is not safe for concurrent access.
 type lruCache struct {
-	data map[string]*list.Element
+	data map[uint64]*list.Element
 	cap  int
 	ll   *list.List
 }
 
-func newLRU(cap int, data map[string]*list.Element) *lruCache {
+func newLRU(cap int, data map[uint64]*list.Element) *lruCache {
 	return &lruCache{
 		data: data,
 		cap:  cap,
@@ -50,7 +50,7 @@ func (lru *lruCache) Len() int {
 }
 
 // Remove removes an item from the cache, returning the item and a boolean indicating if it was found
-func (lru *lruCache) Remove(key string) (interface{}, bool) {
+func (lru *lruCache) Remove(key uint64) (interface{}, bool) {
 	v, ok := lru.data[key]
 	if !ok {
 		return nil, false

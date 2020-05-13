@@ -4,19 +4,18 @@ import "container/list"
 
 type slruItem struct {
 	listid int
-	key    string
+	key    uint64
 	value  interface{}
-	keyh   uint64
 }
 
 // Cache is an LRU cache.  It is not safe for concurrent access.
 type slruCache struct {
-	data           map[string]*list.Element
+	data           map[uint64]*list.Element
 	onecap, twocap int
 	one, two       *list.List
 }
 
-func newSLRU(onecap, twocap int, data map[string]*list.Element) *slruCache {
+func newSLRU(onecap, twocap int, data map[uint64]*list.Element) *slruCache {
 	return &slruCache{
 		data:   data,
 		onecap: onecap,
@@ -104,7 +103,7 @@ func (slru *slruCache) Len() int {
 }
 
 // Remove removes an item from the cache, returning the item and a boolean indicating if it was found
-func (slru *slruCache) Remove(key string) (interface{}, bool) {
+func (slru *slruCache) Remove(key uint64) (interface{}, bool) {
 	v, ok := slru.data[key]
 	if !ok {
 		return nil, false
