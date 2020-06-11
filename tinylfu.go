@@ -6,6 +6,7 @@ package tinylfu
 
 import (
 	"container/list"
+	"sync"
 )
 
 type T struct {
@@ -108,4 +109,30 @@ func (t *T) Set(key uint64, val interface{}) {
 	}
 
 	t.slru.add(oitem)
+}
+
+//------------------------------------------------------------------------------
+
+type SyncT struct {
+	mu sync.Mutex
+	*T
+}
+
+func NewSync(size int, samples int) *SyncT {
+	return &SyncT{
+		T: New(size, samples),
+	}
+}
+
+func (t *SyncT) Get(key uint64) (interface{}, bool) {
+	t.mu.Lock()
+	val, ok := t.T.Get(key)
+	t.mu.Unlock()
+	return val, ok
+}
+
+func (t *SyncT) Set(key uint64, val interface{}) {
+	t.mu.Lock()
+	t.T.Set(key, val)
+	t.mu.Unlock()
 }
