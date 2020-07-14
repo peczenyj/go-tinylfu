@@ -23,22 +23,22 @@ func (lru *lruCache) get(v *list.Element) {
 }
 
 // Set sets a value in the cache
-func (lru *lruCache) add(newItem *slruItem) (_ *slruItem, evicted bool) {
+func (lru *lruCache) add(newItem *Item) (_ *Item, evicted bool) {
 	if lru.ll.Len() < lru.cap {
-		lru.data[newItem.key] = lru.ll.PushFront(&newItem)
-		return &slruItem{}, false
+		lru.data[newItem.Key] = lru.ll.PushFront(&newItem)
+		return &Item{}, false
 	}
 
 	// reuse the tail item
 	e := lru.ll.Back()
-	item := e.Value.(*slruItem)
+	item := e.Value.(*Item)
 
-	delete(lru.data, item.key)
+	delete(lru.data, item.Key)
 
 	oldItem := *item
 	*item = *newItem
 
-	lru.data[item.key] = e
+	lru.data[item.Key] = e
 	lru.ll.MoveToFront(e)
 
 	return &oldItem, true
@@ -55,8 +55,8 @@ func (lru *lruCache) Remove(key uint64) (interface{}, bool) {
 	if !ok {
 		return nil, false
 	}
-	item := v.Value.(*slruItem)
+	item := v.Value.(*Item)
 	lru.ll.Remove(v)
 	delete(lru.data, key)
-	return item.value, true
+	return item.Value, true
 }

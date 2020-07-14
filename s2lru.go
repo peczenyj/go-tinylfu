@@ -1,11 +1,16 @@
 package tinylfu
 
-import "container/list"
+import (
+	"container/list"
+	"time"
+)
 
-type slruItem struct {
+type Item struct {
 	listid int
-	key    uint64
-	value  interface{}
+
+	Key      uint64
+	Value    interface{}
+	ExpireAt time.Time
 }
 
 // Cache is an LRU cache.  It is not safe for concurrent access.
@@ -27,7 +32,7 @@ func newSLRU(onecap, twocap int, data map[uint64]*list.Element) *slruCache {
 
 // get updates the cache data structures for a get
 func (slru *slruCache) get(v *list.Element) {
-	item := v.Value.(*slruItem)
+	item := v.Value.(*Item)
 
 	// already on list two?
 	if item.listid == 2 {
@@ -42,12 +47,12 @@ func (slru *slruCache) get(v *list.Element) {
 		// just do the remove/add
 		slru.one.Remove(v)
 		item.listid = 2
-		slru.data[item.key] = slru.two.PushFront(item)
+		slru.data[item.Key] = slru.two.PushFront(item)
 		return
 	}
 
 	back := slru.two.Back()
-	bitem := back.Value.(*slruItem)
+	bitem := back.Value.(*Item)
 
 	// swap the key/values
 	*bitem, *item = *item, *bitem
@@ -56,8 +61,8 @@ func (slru *slruCache) get(v *list.Element) {
 	item.listid = 1
 
 	// update pointers in the map
-	slru.data[item.key] = v
-	slru.data[bitem.key] = back
+	slru.data[item.Key] = v
+	slru.data[bitem.Key] = back
 
 	// move the elements to the front of their lists
 	slru.one.MoveToFront(v)
@@ -65,28 +70,28 @@ func (slru *slruCache) get(v *list.Element) {
 }
 
 // Set sets a value in the cache
-func (slru *slruCache) add(newItem *slruItem) {
+func (slru *slruCache) add(newItem *Item) {
 
 	newItem.listid = 1
 
 	if slru.one.Len() < slru.onecap || (slru.Len() < slru.onecap+slru.twocap) {
-		slru.data[newItem.key] = slru.one.PushFront(newItem)
+		slru.data[newItem.Key] = slru.one.PushFront(newItem)
 		return
 	}
 
 	// reuse the tail item
 	e := slru.one.Back()
-	item := e.Value.(*slruItem)
+	item := e.Value.(*Item)
 
-	delete(slru.data, item.key)
+	delete(slru.data, item.Key)
 
 	*item = *newItem
 
-	slru.data[item.key] = e
+	slru.data[item.Key] = e
 	slru.one.MoveToFront(e)
 }
 
-func (slru *slruCache) victim() *slruItem {
+func (slru *slruCache) victim() *Item {
 
 	if slru.Len() < slru.onecap+slru.twocap {
 		return nil
@@ -94,7 +99,7 @@ func (slru *slruCache) victim() *slruItem {
 
 	v := slru.one.Back()
 
-	return v.Value.(*slruItem)
+	return v.Value.(*Item)
 }
 
 // Len returns the total number of items in the cache
@@ -109,7 +114,7 @@ func (slru *slruCache) Remove(key uint64) (interface{}, bool) {
 		return nil, false
 	}
 
-	item := v.Value.(*slruItem)
+	item := v.Value.(*Item)
 
 	if item.listid == 2 {
 		slru.two.Remove(v)
@@ -119,5 +124,5 @@ func (slru *slruCache) Remove(key uint64) (interface{}, bool) {
 
 	delete(slru.data, key)
 
-	return item.value, true
+	return item.Value, true
 }

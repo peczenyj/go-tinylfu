@@ -7,16 +7,20 @@ package tinylfu
 import (
 	"container/list"
 	"sync"
+	"time"
 )
 
 type T struct {
-	c       *cm4
-	bouncer *doorkeeper
 	w       int
 	samples int
-	lru     *lruCache
-	slru    *slruCache
-	data    map[uint64]*list.Element
+
+	countSketch *cm4
+	bouncer     *doorkeeper
+
+	data map[uint64]*list.Element
+
+	lru  *lruCache
+	slru *slruCache
 }
 
 func New(size int, samples int) *T {
@@ -40,10 +44,11 @@ func New(size int, samples int) *T {
 	data := make(map[uint64]*list.Element, size)
 
 	return &T{
-		c:       newCM4(size),
 		w:       0,
 		samples: samples,
-		bouncer: newDoorkeeper(samples, 0.01),
+
+		countSketch: newCM4(size),
+		bouncer:     newDoorkeeper(samples, 0.01),
 
 		data: data,
 
@@ -56,35 +61,33 @@ func (t *T) Get(key uint64) (interface{}, bool) {
 
 	t.w++
 	if t.w == t.samples {
-		t.c.reset()
+		t.countSketch.reset()
 		t.bouncer.reset()
 		t.w = 0
 	}
 
 	val, ok := t.data[key]
 	if !ok {
-		t.c.add(key)
+		t.countSketch.add(key)
 		return nil, false
 	}
 
-	item := val.Value.(*slruItem)
+	item := val.Value.(*Item)
+	t.countSketch.add(item.Key)
 
-	t.c.add(item.key)
-
-	v := item.value
 	if item.listid == 0 {
 		t.lru.get(val)
 	} else {
 		t.slru.get(val)
 	}
 
-	return v, true
+	if item.ExpireAt.IsZero() || time.Now().Before(item.ExpireAt) {
+		return item.Value, true
+	}
+	return nil, false
 }
 
-func (t *T) Set(key uint64, val interface{}) {
-
-	newItem := &slruItem{0, key, val}
-
+func (t *T) Set(newItem *Item) {
 	oldItem, evicted := t.lru.add(newItem)
 	if !evicted {
 		return
@@ -97,12 +100,12 @@ func (t *T) Set(key uint64, val interface{}) {
 		return
 	}
 
-	if !t.bouncer.allow(oldItem.key) {
+	if !t.bouncer.allow(oldItem.Key) {
 		return
 	}
 
-	vcount := t.c.estimate(victim.key)
-	ocount := t.c.estimate(oldItem.key)
+	vcount := t.countSketch.estimate(victim.Key)
+	ocount := t.countSketch.estimate(oldItem.Key)
 
 	if ocount < vcount {
 		return
@@ -131,8 +134,8 @@ func (t *SyncT) Get(key uint64) (interface{}, bool) {
 	return val, ok
 }
 
-func (t *SyncT) Set(key uint64, val interface{}) {
+func (t *SyncT) Set(item *Item) {
 	t.mu.Lock()
-	t.T.Set(key, val)
+	t.T.Set(item)
 	t.mu.Unlock()
 }
