@@ -25,7 +25,7 @@ func (lru *lruCache) get(v *list.Element) {
 // Set sets a value in the cache
 func (lru *lruCache) add(newItem *Item) (_ *Item, evicted bool) {
 	if lru.ll.Len() < lru.cap {
-		lru.data[newItem.Key] = lru.ll.PushFront(&newItem)
+		lru.data[newItem.Key] = lru.ll.PushFront(newItem)
 		return &Item{}, false
 	}
 

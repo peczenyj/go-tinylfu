@@ -58,7 +58,6 @@ func New(size int, samples int) *T {
 }
 
 func (t *T) Get(key uint64) (interface{}, bool) {
-
 	t.w++
 	if t.w == t.samples {
 		t.countSketch.reset()
@@ -84,6 +83,7 @@ func (t *T) Get(key uint64) (interface{}, bool) {
 	if item.ExpireAt.IsZero() || time.Now().Before(item.ExpireAt) {
 		return item.Value, true
 	}
+
 	return nil, false
 }
 
@@ -114,28 +114,43 @@ func (t *T) Set(newItem *Item) {
 	t.slru.add(oldItem)
 }
 
+func (t *T) Del(key uint64) {
+	val, ok := t.data[key]
+	if ok {
+		item := val.Value.(*Item)
+		item.Value = nil
+		item.ExpireAt = time.Unix(0, 0)
+	}
+}
+
 //------------------------------------------------------------------------------
 
 type SyncT struct {
 	mu sync.Mutex
-	*T
+	t  *T
 }
 
 func NewSync(size int, samples int) *SyncT {
 	return &SyncT{
-		T: New(size, samples),
+		t: New(size, samples),
 	}
 }
 
 func (t *SyncT) Get(key uint64) (interface{}, bool) {
 	t.mu.Lock()
-	val, ok := t.T.Get(key)
+	val, ok := t.t.Get(key)
 	t.mu.Unlock()
 	return val, ok
 }
 
 func (t *SyncT) Set(item *Item) {
 	t.mu.Lock()
-	t.T.Set(item)
+	t.t.Set(item)
+	t.mu.Unlock()
+}
+
+func (t *SyncT) Del(key uint64) {
+	t.mu.Lock()
+	t.t.Del(key)
 	t.mu.Unlock()
 }
