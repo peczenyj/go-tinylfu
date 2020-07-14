@@ -83,9 +83,9 @@ func (t *T) Get(key uint64) (interface{}, bool) {
 
 func (t *T) Set(key uint64, val interface{}) {
 
-	newitem := slruItem{0, key, val}
+	newItem := &slruItem{0, key, val}
 
-	oitem, evicted := t.lru.add(newitem)
+	oldItem, evicted := t.lru.add(newItem)
 	if !evicted {
 		return
 	}
@@ -93,22 +93,22 @@ func (t *T) Set(key uint64, val interface{}) {
 	// estimate count of what will be evicted from slru
 	victim := t.slru.victim()
 	if victim == nil {
-		t.slru.add(oitem)
+		t.slru.add(oldItem)
 		return
 	}
 
-	if !t.bouncer.allow(oitem.key) {
+	if !t.bouncer.allow(oldItem.key) {
 		return
 	}
 
 	vcount := t.c.estimate(victim.key)
-	ocount := t.c.estimate(oitem.key)
+	ocount := t.c.estimate(oldItem.key)
 
 	if ocount < vcount {
 		return
 	}
 
-	t.slru.add(oitem)
+	t.slru.add(oldItem)
 }
 
 //------------------------------------------------------------------------------

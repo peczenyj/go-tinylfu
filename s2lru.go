@@ -65,12 +65,12 @@ func (slru *slruCache) get(v *list.Element) {
 }
 
 // Set sets a value in the cache
-func (slru *slruCache) add(newitem slruItem) {
+func (slru *slruCache) add(newItem *slruItem) {
 
-	newitem.listid = 1
+	newItem.listid = 1
 
 	if slru.one.Len() < slru.onecap || (slru.Len() < slru.onecap+slru.twocap) {
-		slru.data[newitem.key] = slru.one.PushFront(&newitem)
+		slru.data[newItem.key] = slru.one.PushFront(newItem)
 		return
 	}
 
@@ -80,7 +80,7 @@ func (slru *slruCache) add(newitem slruItem) {
 
 	delete(slru.data, item.key)
 
-	*item = newitem
+	*item = *newItem
 
 	slru.data[item.key] = e
 	slru.one.MoveToFront(e)

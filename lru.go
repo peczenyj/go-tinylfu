@@ -23,10 +23,10 @@ func (lru *lruCache) get(v *list.Element) {
 }
 
 // Set sets a value in the cache
-func (lru *lruCache) add(newitem slruItem) (oitem slruItem, evicted bool) {
+func (lru *lruCache) add(newItem *slruItem) (_ *slruItem, evicted bool) {
 	if lru.ll.Len() < lru.cap {
-		lru.data[newitem.key] = lru.ll.PushFront(&newitem)
-		return slruItem{}, false
+		lru.data[newItem.key] = lru.ll.PushFront(&newItem)
+		return &slruItem{}, false
 	}
 
 	// reuse the tail item
@@ -35,13 +35,13 @@ func (lru *lruCache) add(newitem slruItem) (oitem slruItem, evicted bool) {
 
 	delete(lru.data, item.key)
 
-	oitem = *item
-	*item = newitem
+	oldItem := *item
+	*item = *newItem
 
 	lru.data[item.key] = e
 	lru.ll.MoveToFront(e)
 
-	return oitem, true
+	return &oldItem, true
 }
 
 // Len returns the total number of items in the cache
