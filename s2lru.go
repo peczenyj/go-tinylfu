@@ -2,16 +2,7 @@ package tinylfu
 
 import (
 	"container/list"
-	"time"
 )
-
-type Item struct {
-	listid int
-
-	Key      uint64
-	Value    interface{}
-	ExpireAt time.Time
-}
 
 // Cache is an LRU cache.  It is not safe for concurrent access.
 type slruCache struct {
@@ -71,7 +62,6 @@ func (slru *slruCache) get(v *list.Element) {
 
 // Set sets a value in the cache
 func (slru *slruCache) add(newItem *Item) {
-
 	newItem.listid = 1
 
 	if slru.one.Len() < slru.onecap || (slru.Len() < slru.onecap+slru.twocap) {
@@ -92,7 +82,6 @@ func (slru *slruCache) add(newItem *Item) {
 }
 
 func (slru *slruCache) victim() *Item {
-
 	if slru.Len() < slru.onecap+slru.twocap {
 		return nil
 	}
@@ -108,21 +97,11 @@ func (slru *slruCache) Len() int {
 }
 
 // Remove removes an item from the cache, returning the item and a boolean indicating if it was found
-func (slru *slruCache) Remove(key uint64) (interface{}, bool) {
-	v, ok := slru.data[key]
-	if !ok {
-		return nil, false
-	}
-
+func (slru *slruCache) Remove(v *list.Element) {
 	item := v.Value.(*Item)
-
 	if item.listid == 2 {
 		slru.two.Remove(v)
 	} else {
 		slru.one.Remove(v)
 	}
-
-	delete(slru.data, key)
-
-	return item.Value, true
 }

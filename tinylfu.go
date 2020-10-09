@@ -10,6 +10,15 @@ import (
 	"time"
 )
 
+type Item struct {
+	listid int
+
+	Key      uint64
+	Value    interface{}
+	ExpireAt time.Time
+	OnEvict  func()
+}
+
 type T struct {
 	w       int
 	samples int
@@ -24,7 +33,6 @@ type T struct {
 }
 
 func New(size int, samples int) *T {
-
 	const lruPct = 1
 
 	lruSize := (lruPct * size) / 100
@@ -34,7 +42,6 @@ func New(size int, samples int) *T {
 	slruSize := int(float64(size) * ((100.0 - lruPct) / 100.0))
 	if slruSize < 1 {
 		slruSize = 1
-
 	}
 	slru20 := int(0.2 * float64(slruSize))
 	if slru20 < 1 {
@@ -57,6 +64,12 @@ func New(size int, samples int) *T {
 	}
 }
 
+func (t *T) onEvict(item *Item) {
+	if item.OnEvict != nil {
+		item.OnEvict()
+	}
+}
+
 func (t *T) Get(key uint64) (interface{}, bool) {
 	t.w++
 	if t.w == t.samples {
@@ -65,15 +78,14 @@ func (t *T) Get(key uint64) (interface{}, bool) {
 		t.w = 0
 	}
 
+	t.countSketch.add(key)
+
 	val, ok := t.data[key]
 	if !ok {
-		t.countSketch.add(key)
 		return nil, false
 	}
 
 	item := val.Value.(*Item)
-	t.countSketch.add(item.Key)
-
 	if item.listid == 0 {
 		t.lru.get(val)
 	} else {
@@ -84,6 +96,7 @@ func (t *T) Get(key uint64) (interface{}, bool) {
 		return item.Value, true
 	}
 
+	t.del(val)
 	return nil, false
 }
 
@@ -101,26 +114,37 @@ func (t *T) Set(newItem *Item) {
 	}
 
 	if !t.bouncer.allow(oldItem.Key) {
+		t.onEvict(oldItem)
 		return
 	}
 
-	vcount := t.countSketch.estimate(victim.Key)
-	ocount := t.countSketch.estimate(oldItem.Key)
+	victimCount := t.countSketch.estimate(victim.Key)
+	itemCount := t.countSketch.estimate(oldItem.Key)
 
-	if ocount < vcount {
-		return
+	if itemCount > victimCount {
+		t.slru.add(oldItem)
+	} else {
+		t.onEvict(oldItem)
 	}
-
-	t.slru.add(oldItem)
 }
 
 func (t *T) Del(key uint64) {
-	val, ok := t.data[key]
-	if ok {
-		item := val.Value.(*Item)
-		item.Value = nil
-		item.ExpireAt = time.Unix(0, 0)
+	if val, ok := t.data[key]; ok {
+		t.del(val)
 	}
+}
+
+func (t *T) del(val *list.Element) {
+	item := val.Value.(*Item)
+	delete(t.data, item.Key)
+
+	if item.listid == 0 {
+		t.lru.Remove(val)
+	} else {
+		t.slru.Remove(val)
+	}
+
+	t.onEvict(item)
 }
 
 //------------------------------------------------------------------------------

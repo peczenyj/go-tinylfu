@@ -26,20 +26,20 @@ func (lru *lruCache) get(v *list.Element) {
 func (lru *lruCache) add(newItem *Item) (_ *Item, evicted bool) {
 	if lru.ll.Len() < lru.cap {
 		lru.data[newItem.Key] = lru.ll.PushFront(newItem)
-		return &Item{}, false
+		return nil, false
 	}
 
 	// reuse the tail item
-	e := lru.ll.Back()
-	item := e.Value.(*Item)
+	val := lru.ll.Back()
+	item := val.Value.(*Item)
 
 	delete(lru.data, item.Key)
 
 	oldItem := *item
 	*item = *newItem
 
-	lru.data[item.Key] = e
-	lru.ll.MoveToFront(e)
+	lru.data[item.Key] = val
+	lru.ll.MoveToFront(val)
 
 	return &oldItem, true
 }
@@ -50,13 +50,6 @@ func (lru *lruCache) Len() int {
 }
 
 // Remove removes an item from the cache, returning the item and a boolean indicating if it was found
-func (lru *lruCache) Remove(key uint64) (interface{}, bool) {
-	v, ok := lru.data[key]
-	if !ok {
-		return nil, false
-	}
-	item := v.Value.(*Item)
+func (lru *lruCache) Remove(v *list.Element) {
 	lru.ll.Remove(v)
-	delete(lru.data, key)
-	return item.Value, true
 }
