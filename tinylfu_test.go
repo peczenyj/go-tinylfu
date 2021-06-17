@@ -1,94 +1,75 @@
 package tinylfu_test
 
 import (
-	"math/rand"
+	"crypto/rand"
+	"io"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/require"
 	"github.com/vmihailenco/go-tinylfu"
 )
 
-func TestGinkgo(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "kafkaq")
-}
+func TestCache(t *testing.T) {
+	cache := tinylfu.New(1e3, 10e3)
+	keys := []string{"one", "two", "three"}
 
-var _ = Describe("tinylfu", func() {
-	It("works", func() {
-		cache := tinylfu.New(1e3, 100e3)
-		keys := []string{"one", "two", "three"}
+	for _, key := range keys {
+		cache.Set(&tinylfu.Item{
+			Key:   key,
+			Value: key,
+		})
 
-		for _, key := range keys {
-			cache.Set(&tinylfu.Item{
-				Key:   key,
-				Value: key,
-			})
-
-			got, ok := cache.Get(key)
-			Expect(ok).To(BeTrue())
-			Expect(got).To(Equal(key))
-		}
-
-		for _, key := range keys {
-			got, ok := cache.Get(key)
-			Expect(ok).To(BeTrue())
-			Expect(got).To(Equal(key))
-
-			cache.Set(&tinylfu.Item{
-				Key:   key,
-				Value: key + key,
-			})
-		}
-
-		for _, key := range keys {
-			got, ok := cache.Get(key)
-			Expect(ok).To(BeTrue())
-			Expect(got).To(Equal(key + key))
-		}
-
-		for _, key := range keys {
-			cache.Del(key)
-		}
-
-		for _, key := range keys {
-			got, ok := cache.Get(key)
-			Expect(ok).To(BeFalse())
-			Expect(got).To(BeNil())
-		}
-	})
-
-	It("does not OOM", func() {
-		cache := tinylfu.New(1e3, 100e3)
-
-		for i := 0; i < 10e6; i++ {
-			key := randString(10)
-			cache.Set(&tinylfu.Item{
-				Key:   key,
-				Value: key,
-			})
-		}
-	})
-})
-
-const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-func randString(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+		got, ok := cache.Get(key)
+		require.True(t, ok)
+		require.Equal(t, key, got)
 	}
-	return string(b)
+
+	for _, key := range keys {
+		got, ok := cache.Get(key)
+		require.True(t, ok)
+		require.Equal(t, key, got)
+
+		cache.Set(&tinylfu.Item{
+			Key:   key,
+			Value: key + key,
+		})
+	}
+
+	for _, key := range keys {
+		got, ok := cache.Get(key)
+		require.True(t, ok)
+		require.Equal(t, key+key, got)
+	}
+
+	for _, key := range keys {
+		cache.Del(key)
+	}
+
+	for _, key := range keys {
+		_, ok := cache.Get(key)
+		require.False(t, ok)
+	}
 }
 
-func BenchmarkSet(b *testing.B) {
-	cache := tinylfu.New(1e3, 100e3)
+func TestOOM(t *testing.T) {
+	keys := make([]string, 10000)
+	for i := range keys {
+		keys[i] = randWord()
+	}
 
-	for i := 0; i < b.N; i++ {
-		key := randString(10)
+	cache := tinylfu.New(1e3, 10e3)
+
+	for i := 0; i < 5e6; i++ {
+		key := keys[i%len(keys)]
 		cache.Set(&tinylfu.Item{
 			Key:   key,
 			Value: key,
 		})
 	}
+}
+
+func randWord() string {
+	buf := make([]byte, 64)
+	io.ReadFull(rand.Reader, buf)
+	return string(buf)
 }
