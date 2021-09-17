@@ -1,9 +1,13 @@
 package tinylfu_test
 
 import (
-	"crypto/rand"
+	"context"
+	cryptorand "crypto/rand"
+	"fmt"
 	"io"
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/vmihailenco/go-tinylfu"
@@ -68,8 +72,58 @@ func TestOOM(t *testing.T) {
 	}
 }
 
+func TestCorruptionOnExpiry(t *testing.T) {
+	const size = 50000
+
+	strFor := func(i int) string {
+		return fmt.Sprintf("a string %d", i)
+	}
+	keyName := func(i int) string {
+		return fmt.Sprintf("key-%00000d", i)
+	}
+
+	mycache := tinylfu.New(1000, 10000)
+	// Put a bunch of stuff in the cache with a TTL of 1 second
+	for i := 0; i < size; i++ {
+		key := keyName(i)
+		mycache.Set(&tinylfu.Item{
+			Key:      key,
+			Value:    []byte(strFor(i)),
+			ExpireAt: time.Now().Add(time.Second),
+		})
+	}
+
+	// Read stuff for a bit longer than the TTL - that's when the corruption occurs
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	done := ctx.Done()
+loop:
+	for {
+		select {
+		case <-done:
+			// this is expected
+			break loop
+		default:
+			i := rand.Intn(size)
+			key := keyName(i)
+
+			b, ok := mycache.Get(key)
+			if !ok {
+				continue loop
+			}
+
+			got := string(b.([]byte))
+			expected := strFor(i)
+			if got != expected {
+				t.Fatalf("expected=%q got=%q key=%q", expected, got, key)
+			}
+		}
+	}
+}
+
 func randWord() string {
 	buf := make([]byte, 64)
-	io.ReadFull(rand.Reader, buf)
+	io.ReadFull(cryptorand.Reader, buf)
 	return string(buf)
 }
