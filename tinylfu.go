@@ -112,6 +112,21 @@ func (t *T) Get(key string) (interface{}, bool) {
 }
 
 func (t *T) Set(newItem *Item) {
+	if e, ok := t.data[newItem.Key]; ok {
+		// Key is already in our cache.
+		// `Set` will act as a `Get` for list movements
+		item := e.Value.(*Item)
+		item.Value = newItem.Value
+		t.countSketch.add(item.keyh)
+
+		if item.listid == 0 {
+			t.lru.get(e)
+		} else {
+			t.slru.get(e)
+		}
+		return
+	}
+
 	newItem.keyh = xxhash.Sum64String(newItem.Key)
 
 	oldItem, evicted := t.lru.add(newItem)
