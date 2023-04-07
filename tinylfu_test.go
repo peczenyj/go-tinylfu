@@ -127,3 +127,27 @@ func randWord() string {
 	io.ReadFull(cryptorand.Reader, buf)
 	return string(buf)
 }
+
+func TestAddAlreadyInCache(t *testing.T) {
+	c := tinylfu.New(100, 10000)
+
+	c.Set(&tinylfu.Item{
+		Key:   "foo",
+		Value: "bar",
+	})
+
+	val, _ := c.Get("foo")
+	if val.(string) != "bar" {
+		t.Errorf("c.Get(foo)=%q, want %q", val, "bar")
+	}
+
+	c.Set(&tinylfu.Item{
+		Key:   "foo",
+		Value: "baz",
+	})
+
+	val, _ = c.Get("foo")
+	if val.(string) != "baz" {
+		t.Errorf("c.Get(foo)=%q, want %q", val, "baz")
+	}
+}
