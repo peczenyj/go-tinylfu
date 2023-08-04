@@ -13,6 +13,14 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
+// LFU interface
+type LFU interface {
+	Get(key string) (interface{}, bool) 
+	Add(newItem *Item) error
+	Set(newItem *Item)
+	Del(key string)
+}
+
 // Item type.
 type Item struct {
 	Key      string
@@ -27,6 +35,8 @@ type Item struct {
 func (item Item) expired() bool {
 	return !item.ExpireAt.IsZero() && time.Now().After(item.ExpireAt)
 }
+
+var _ LFU = (*T)(nil)
 
 // T type.
 type T struct {
@@ -203,6 +213,8 @@ func (t *T) del(val *list.Element) {
 
 //------------------------------------------------------------------------------
 
+var _ LFU = (*SyncT)(nil)
+
 type SyncT struct {
 	mu sync.Mutex
 	t  *T
@@ -226,6 +238,15 @@ func (t *SyncT) Set(item *Item) {
 	t.t.Set(item)
 	t.mu.Unlock()
 }
+
+func (t *SyncT) Add(item *Item) error {
+	t.mu.Lock()
+	err := t.t.Add(item)
+	t.mu.Unlock()
+
+	return err
+}
+
 
 func (t *SyncT) Del(key string) {
 	t.mu.Lock()
