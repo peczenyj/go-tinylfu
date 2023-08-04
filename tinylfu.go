@@ -216,7 +216,7 @@ func (t *T) del(val *list.Element) {
 var _ LFU = (*SyncT)(nil)
 
 type SyncT struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 	t  *T
 }
 
@@ -227,9 +227,10 @@ func NewSync(size int, samples int) *SyncT {
 }
 
 func (t *SyncT) Get(key string) (interface{}, bool) {
-	t.mu.Lock()
+	t.mu.RLock()
 	val, ok := t.t.Get(key)
-	t.mu.Unlock()
+	t.mu.RUnlock()
+
 	return val, ok
 }
 
