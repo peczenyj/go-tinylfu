@@ -6,12 +6,14 @@ package tinylfu
 
 import (
 	"container/list"
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
 )
 
+// Item type.
 type Item struct {
 	Key      string
 	Value    interface{}
@@ -26,6 +28,7 @@ func (item Item) expired() bool {
 	return !item.ExpireAt.IsZero() && time.Now().After(item.ExpireAt)
 }
 
+// T type.
 type T struct {
 	w       int
 	samples int
@@ -39,6 +42,7 @@ type T struct {
 	slru *slruCache
 }
 
+// New constructor.
 func New(size int, samples int) *T {
 	const lruPct = 1
 
@@ -77,6 +81,7 @@ func (t *T) onEvict(item *Item) {
 	}
 }
 
+// Get return an item from cache based on key.
 func (t *T) Get(key string) (interface{}, bool) {
 	t.w++
 	if t.w == t.samples {
@@ -111,8 +116,25 @@ func (t *T) Get(key string) (interface{}, bool) {
 	return value, true
 }
 
+// ErrorKeyAlreadyExists will be returned by Add operations if the key already exists.
+var ErrKeyAlreadyExists = errors.New("key already exists")
+
+// Add will set an item on cache. If the key already exists the action fails.
+func (t *T) Add(newItem *Item) error {
+	return t.set(newItem, true)
+}
+
+// Set will set an item on cache. If the key already exists the contents are overridden.
 func (t *T) Set(newItem *Item) {
+	_ = t.set(newItem, false)
+}
+
+func (t *T) set(newItem *Item, failIfKeyAlreadyExists bool) error {
 	if e, ok := t.data[newItem.Key]; ok {
+		if failIfKeyAlreadyExists {
+			return ErrKeyAlreadyExists
+		}
+
 		// Key is already in our cache.
 		// `Set` will act as a `Get` for list movements
 		item := e.Value.(*Item)
@@ -124,26 +146,27 @@ func (t *T) Set(newItem *Item) {
 		} else {
 			t.slru.get(e)
 		}
-		return
+
+		return nil
 	}
 
 	newItem.keyh = xxhash.Sum64String(newItem.Key)
 
 	oldItem, evicted := t.lru.add(newItem)
 	if !evicted {
-		return
+		return nil
 	}
 
 	// estimate count of what will be evicted from slru
 	victim := t.slru.victim()
 	if victim == nil {
 		t.slru.add(oldItem)
-		return
+		return nil
 	}
 
 	if !t.bouncer.allow(oldItem.keyh) {
 		t.onEvict(oldItem)
-		return
+		return nil
 	}
 
 	victimCount := t.countSketch.estimate(victim.keyh)
@@ -154,8 +177,11 @@ func (t *T) Set(newItem *Item) {
 	} else {
 		t.onEvict(oldItem)
 	}
+
+	return nil
 }
 
+// Del remove a key from cache if exists.
 func (t *T) Del(key string) {
 	if val, ok := t.data[key]; ok {
 		t.del(val)
