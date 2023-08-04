@@ -149,7 +149,7 @@ loop:
 
 func randWord() string {
 	buf := make([]byte, 64)
-	io.ReadFull(cryptorand.Reader, buf)
+	_,_ = io.ReadFull(cryptorand.Reader, buf)
 	return string(buf)
 }
 
