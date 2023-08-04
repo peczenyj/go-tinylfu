@@ -33,6 +33,20 @@ func TestCache(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, key, got)
 
+		err := cache.Add(&tinylfu.Item{
+			Key:   key,
+			Value: key + "ops",
+		})
+
+		require.EqualError(t, err, "key already exists")
+	}
+
+
+	for _, key := range keys {
+		got, ok := cache.Get(key)
+		require.True(t, ok)
+		require.Equal(t, key, got)
+
 		cache.Set(&tinylfu.Item{
 			Key:   key,
 			Value: key + key,
@@ -52,6 +66,18 @@ func TestCache(t *testing.T) {
 	for _, key := range keys {
 		_, ok := cache.Get(key)
 		require.False(t, ok)
+	}
+
+	for _, key := range keys {
+		_, ok := cache.Get(key)
+		require.False(t, ok)
+
+		err := cache.Add(&tinylfu.Item{
+			Key:   key,
+			Value: key + "add",
+		})
+
+		require.NoError(t, err)
 	}
 }
 
