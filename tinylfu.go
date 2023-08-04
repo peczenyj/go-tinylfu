@@ -15,7 +15,7 @@ import (
 
 // LFU interface
 type LFU interface {
-	Get(key string) (interface{}, bool) 
+	Get(key string) (interface{}, bool)
 	Add(newItem *Item) error
 	Set(newItem *Item)
 	Del(key string)
@@ -247,7 +247,6 @@ func (t *SyncT) Add(item *Item) error {
 
 	return err
 }
-
 
 func (t *SyncT) Del(key string) {
 	t.mu.Lock()

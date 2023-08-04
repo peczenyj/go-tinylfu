@@ -5,7 +5,6 @@ import (
 )
 
 func TestNvec(t *testing.T) {
-
 	n := newNvec(8)
 
 	n.inc(0)
@@ -59,7 +58,6 @@ func TestNvec(t *testing.T) {
 }
 
 func TestCM4(t *testing.T) {
-
 	cm := newCM4(32)
 
 	hash := uint64(0x0ddc0ffeebadf00d)

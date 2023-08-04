@@ -41,7 +41,6 @@ func TestCache(t *testing.T) {
 		require.EqualError(t, err, "key already exists")
 	}
 
-
 	for _, key := range keys {
 		got, ok := cache.Get(key)
 		require.True(t, ok)
